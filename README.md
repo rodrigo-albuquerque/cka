@@ -46,3 +46,62 @@ kubectl rollout history deployment
 ```
 
 ```
+# Node Maintenance
+Draining node so pods are gracefully terminated and re-created on another node and node tainted to be unscheduleable:
+```
+kubectl drain <node_name> --ignore-daemonsets
+```
+Uncordoning node (pods don't fall back automatically):
+```
+kubectl uncordon <node_name>
+```
+Cordoning (makes node unscheduleable but don't move pods to other nodes):
+```
+kubectl cordon <node_name>
+```
+
+# kubeadm Upgrade Process
+## Master node
+Upgrade kubeadm:
+```
+apt-get upgrade -y kubeadm=1.12.0-00
+```
+Perform master node's upgrade:
+```
+kubeadm upgrade apply v1.12.0
+```
+kubectl get nodes still show old version because kubelet has not been upgraded yet
+Upgrade kubelet:
+```
+apt-get upgrade -y kubelet=1.12.0-00
+```
+Restart kubelet
+```
+systemctl restart kubelet
+```
+## Worker nodes
+Drain worker node:
+```
+kubectl drain <node>
+```
+Upgrade kubeadm:
+```
+apt-get upgrade -y kubeadm=10.12.0-00
+```
+Upgrade kubelet daemon:
+```
+apt-get upgrade -y kubelet=1.12.0-00
+```
+Update node config for new kubelet version:
+```
+kubeadm upgrade node config --kubelet-version v1.12.0
+```
+Restart kubelet daemon:
+```
+systemctl restart kubelet
+```
+Uncordon node:
+```
+kubectl uncordon <node>
+```
+Repeat steps with all other worker nodes
