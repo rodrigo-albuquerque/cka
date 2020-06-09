@@ -40,40 +40,27 @@ from file:
 kubectl create secret generic mysecret --from-file=myfile.txt --dry-run=client -o yaml
 ```
 # Deployment Rollout
-Create deployment with YAML file and --record to track version changes (I used older image nginx:1.18):
+Create deployment with YAML file and --record to track version changes:
 ```
-kubectl create -f nginx.yaml --record
+kubectl create -f <deployment file name>.yaml --record
 ```
 Check Deployment history:
 ```
-# kubectl rollout history deployment nginx
-deployment.apps/nginx
-REVISION  CHANGE-CAUSE
-1         kubectl apply --filename=nginx.yaml --record=true
+kubectl rollout history deployment <deployment name>
 ```
-Update deployment image to latest:
+Update deployment image:
 ```
-# kubectl set image deployment nginx nginx=nginx:1.19
-deployment.apps/nginx image updated
+kubectl set image deployment nginx nginx=nginx:1.19
 ```
 Confirm rollout was successful:
 ```
-# kubectl rollout status deployment nginx
-deployment "nginx" successfully rolled out
-```
-Check deployment history to confirm there are 2 versions now:
-```
-# kubectl rollout history deployment nginx
-deployment.apps/nginx
-REVISION  CHANGE-CAUSE
-1         kubectl apply --filename=nginx.yaml --record=true
-2         kubectl apply --filename=nginx.yaml --record=true
+kubectl rollout status deployment <deployment name>
 ```
 Rollback to previous version:
 ```
-kubectl rollout undo deployment nginx
+kubectl rollout undo deployment <deployment name>
 ```
-To specific revision number:
+Alternatively, to specific revision number:
 ```
 kubectl rollout undo deployment nginx --to-revision=<revision number>
 ```
