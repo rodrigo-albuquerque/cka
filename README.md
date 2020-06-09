@@ -195,7 +195,7 @@ spec:
   - digital signature
   - key encipherment
   - server auth
-  request: <paste contents of "rodrigo.csr | base64" here
+  request: <paste contents of "rodrigo.csr | base64" here>
 ```
 Reference: https://kubernetes.io/docs/tasks/tls/managing-tls-in-a-cluster/#create-a-certificate-signing-request-object-to-send-to-the-kubernetes-api
 
