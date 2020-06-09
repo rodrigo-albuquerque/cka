@@ -40,11 +40,42 @@ from file:
 kubectl create secret generic mysecret --from-file=myfile.txt --dry-run=client -o yaml
 ```
 # Deployment Rollout
+Create deployment with YAML file and --record to track version changes (I used older image nginx:1.18):
 ```
-kubectl rollout history deployment
+kubectl create -f nginx.yaml --record
 ```
+Check Deployment history:
 ```
-
+# kubectl rollout history deployment nginx
+deployment.apps/nginx
+REVISION  CHANGE-CAUSE
+1         kubectl apply --filename=nginx.yaml --record=true
+```
+Update deployment image to latest:
+```
+# kubectl set image deployment nginx nginx=nginx:1.19
+deployment.apps/nginx image updated
+```
+Confirm rollout was successful:
+```
+# kubectl rollout status deployment nginx
+deployment "nginx" successfully rolled out
+```
+Check deployment history to confirm there are 2 versions now:
+```
+# kubectl rollout history deployment nginx
+deployment.apps/nginx
+REVISION  CHANGE-CAUSE
+1         kubectl apply --filename=nginx.yaml --record=true
+2         kubectl apply --filename=nginx.yaml --record=true
+```
+Rollback to previous version:
+```
+kubectl rollout undo deployment nginx
+```
+To specific revision number:
+```
+kubectl rollout undo deployment nginx --to-revision=<revision number>
 ```
 # Node Maintenance
 Draining node so pods are gracefully terminated and re-created on another node and node tainted to be unscheduleable:
@@ -62,11 +93,15 @@ kubectl cordon <node_name>
 
 # kubeadm Upgrade Process
 ## Master node
+Check which versions are available for upgrade:
+```
+kubeadm upgrade plan
+```
 Upgrade kubeadm:
 ```
 apt-get upgrade -y kubeadm=1.12.0-00
 ```
-Perform master node's upgrade:
+Perform master node's components upgrade (api-server, controller-manager and kube-proxy):
 ```
 kubeadm upgrade apply v1.12.0
 ```
@@ -105,3 +140,91 @@ Uncordon node:
 kubectl uncordon <node>
 ```
 Repeat steps with all other worker nodes
+# BackUp
+One option is to get all resources from all namespaces and move to YAML file:
+```
+kubectl get all --all-namespaces -o yaml > full_cluster.yaml
+```
+The other option is to backup etcd which stores all cluster state info.
+Cluster data is in --data-dir in etcd.service or /etc/kubernetes/manifests/etcd.yaml (in case of etcd pod), typically /var/lib/etcd.
+Here's how to upgrade when etcd is running as systemd service.
+Check etcd major version first:
+```
+etcd version
+```
+Set ETCDCTL_API variable to major version and use snapshot save command:
+```
+ETCDCTL_API=3 etcdctl snapshot save /tmp/snapshot.db --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/etcd-server.crt --key=/etc/kubernetes/pki/etcd/etcd-server.key
+```
+Check etcd backup status:
+```
+ETCDCTL_API=3 etcdctl snapshot status /tmp/snapshot.db
+```
+To restore backup, stop kube-apiserver (as it depends on etcd):
+```
+service kube-apiserver stop
+```
+Then execute snapshot restore command:
+```
+ETCDCTL_API=3 etcdctl --endpoints=https://[127.0.0.1]:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+     --name=master \
+     --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key \
+     --data-dir /var/lib/etcd-from-backup \
+     --initial-cluster=master=https://127.0.0.1:2380 \
+     --initial-cluster-token=etcd-cluster-1 \
+     --initial-advertise-peer-urls=https://127.0.0.1:2380 \
+     snapshot restore /tmp/snapshot-pre-boot.db
+```
+Set --initial-cluster-token to token above and point --data-dir to new directory above in etcd.service.
+Lastly, reload service daemon, restart etcd and start kube-apiserver again:
+```
+systemctl daemon-reload
+service etcd restart
+service kube-apiserver start
+```
+# How to create kubectl (admin) certificate to access kubernetes cluster
+First, create private key as you normally would using openssl:
+```
+openssl genrsa -out rodrigo.key 2048
+```
+Then CSR request:
+```
+openssl req -new -key admin.key  -subj "/CN=rodrigo" -out rodrigo.csr
+```
+Copy contents of rodrigo.csr and encoded into base64 format (without spaces):
+```
+cat ~/.ssh/rodrigo.csr | base64 | tr -d '\n'
+```
+And paste it to YAML file:
+```yaml
+apiVersion: certificates.k8s.io/v1beta1
+kind: CertificateSigningRequest
+metadata:
+  name: rodrigo
+spec:
+  groups:
+  - system:authenticated
+  usages:
+  - digital signature
+  - key encipherment
+  - server auth
+  request: <paste contents of "rodrigo.csr | base64" here
+```
+Reference: https://kubernetes.io/docs/tasks/tls/managing-tls-in-a-cluster/#create-a-certificate-signing-request-object-to-send-to-the-kubernetes-api
+Run YAML file:
+```
+kubectl create -f rodrigo.yaml
+```
+Check if request came in and is "pending":
+```
+kubectl get csr
+```
+Approve request:
+```
+kubectl certificate approve rodrigo
+```
+Kubernetes signs and generates a certificate using /etc/kubernetes/pki/ca.key and ca.crt or equivalent location from kube-controller systemd (or pod) --cluster-signing-cert-file and --cluster-signing-key-file.
+Now copy certificate portion of 'kubectl get csr -o yaml', decode it and paste it to rodrigo.crt file:
+```
+kubectl get csr rodrigo -o jsonpath='{.status.certificate}' | base64 --decode > rodrigo.crt
+```
