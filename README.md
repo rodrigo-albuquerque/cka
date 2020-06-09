@@ -216,3 +216,27 @@ Now copy certificate portion of 'kubectl get csr -o yaml', decode it and paste i
 ```
 kubectl get csr rodrigo -o jsonpath='{.status.certificate}' | base64 --decode > rodrigo.crt
 ```
+# RBAC
+Check if one has access to do something optionally as a given user with --as <username>:
+```
+kubectl auth can-i <action> <resource> --as <username>
+```
+E.g.
+```
+kubectl auth can-i create deployments
+```
+The answer is straight 'yes' or 'no'.
+Quickly check if resource is namespaced or not (false to check non-namespaced resources):
+```
+kubectl api-resourcse --namespaced=true
+```
+Create a role (--resource-name= limits scope to specific objects):
+```
+kubectl create role developer --verb=create --verb=list --verb=delete --resource=pods --dry-run -o yaml
+```
+Bind the role to user:
+```
+kubectl create rolebinding dev-user-binding --role=developer --user=dev-user
+```
+Replac role/rolebinding for clusterrole/clusterrolebinding for cluster-wide access.
+
