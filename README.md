@@ -239,4 +239,95 @@ Bind the role to user:
 kubectl create rolebinding dev-user-binding --role=developer --user=dev-user
 ```
 Replac role/rolebinding for clusterrole/clusterrolebinding for cluster-wide access.
-
+# Using images from Private Repository
+Create docker-registry type of secret:
+```
+kubectl create secret docker-registry <registry name> \
+--docker-server=<private-registry>
+--docker-username=<username>
+--docker-password=<password>
+--docker-email=<email>
+```
+Add secret's name to imagePullSecrets on pod's spec:
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+spec:
+  containers:
+  - name: nginx
+    image: private-registry.io/rodrigo-albuquerque/myapp
+  imagePullSecrets:
+  - name: <registry name>
+```
+# Security Context
+To run container as a given user, specify its ID in runAsUser in either pod or container spec:
+```
+spec:
+  containers:
+  - name: ubuntu
+    image: ubuntu
+    command: ['sleep', '3600']
+    securityContext:
+      runAsUser: 1001
+      capabilities:
+        add: ["MAC_ADMIN"]
+```
+Capabilities can only be added at container level, not at pod level.
+# Control Plane Health Check
+Check node status:
+```
+kubectl get nodes
+```
+Check pods:
+```
+kubectl get pods
+```
+If kubeadm, check control plane pods:
+```
+kubectl get pods -n kube-system
+```
+Otherwise, on master node
+Check kube-apiserver:
+```
+systemctl status kubelet
+```
+kube-controller-manager:
+```
+systemctl status kube-controller-manager
+```
+And kube-scheduler status:
+```
+systemctl status kube-scheduler
+```
+On worker nodes, check kubelet:
+```
+systemctl status kubelet
+```
+And kube-proxy:
+```
+systemctl status kube-proxy
+```
+Check service logs (kubeadm):
+```
+kubectl logs <service> -n kube-system
+```
+Or using journalctl:
+```
+journalctl -u <service>
+```
+# Environment variables to pod
+Explicit:
+```
+env:
+  - name: APP_COLOUR
+    value: pink
+```
+Just value from secret/configmap:
+```
+env:
+  - name: APP_COLOUR
+    valueFrom:
+      secretKeyRef: mysecret
+```
