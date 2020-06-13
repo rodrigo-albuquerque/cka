@@ -331,3 +331,20 @@ env:
     valueFrom:
       secretKeyRef: mysecret
 ```
+# Service Accounts
+.Service account creates service account object and generates token for service account.
+It then creates a secret object and stores token.
+The secret object is then linked to Service Account.
+Here's how we view tokenL
+```
+kubectl describe secret <serviceaccount>
+```
+Token can then be used as authorisation bearer token when making API call to kubernetes cluster:
+```
+curl https://<kube-apiserver>:6443/api -insecure --header "Authorization: Bearer <paste token here>
+```
+If application that requires token resides in kubernetes cluster itself, we can directly mount token's secret as volume inside pod.
+For every namespace within Kubernetes, a service account named 'default' is automatically created.
+Whenever a pod is created, the default service account and its token are automatically mounted to pod as volume mount.
+Setting automountServiceAccountToken to false is pod's spec section disables this behaviour.
+
